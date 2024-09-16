@@ -1,0 +1,17 @@
+data/
+*.pth
+*.log
+*.json
+*.npy
+*.npz
+*.pyc
+*.pkl
+model/
+build/
+data_utils/face_tracking/3DMM/01_MorphableModel.mat
+*.egg-info
+
+model/trial_may.zip
+data_utils/face_tracking/3DMM/sub_mesh.obj
+demo/transaud.wav
+videos/
