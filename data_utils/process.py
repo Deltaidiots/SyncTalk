@@ -39,6 +39,67 @@ def extract_images(path, out_path, fps=25):
     os.system(cmd)
     print(f'[INFO] ===== extracted images =====')
 
+def extract_face_coordinates(ori_imgs_dir):
+
+    print(f'[INFO] ===== extract face coordinates from {ori_imgs_dir} =====')
+
+    try:
+        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False)
+    except:
+        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
+    image_paths = glob.glob(os.path.join(ori_imgs_dir, '*.jpg'))
+
+    box = None
+
+    for image_path in tqdm.tqdm(image_paths):
+        input = cv2.imread(image_path, cv2.IMREAD_UNCHANGED) # [H, W, 3]
+        input = cv2.cvtColor(input, cv2.COLOR_BGR2RGB)
+        preds, score, detected_faces = fa.get_landmarks(input, return_bboxes=True)
+        if detected_faces is not None and len(detected_faces) > 0:
+            face = detected_faces[0]
+            np.savetxt(image_path.replace('jpg', 'box'), face, '%f')
+            face_coordinates = face[:4]
+            if box is None:
+                box = face_coordinates                
+            else:
+                box = np.array([
+                    min(box[0], face_coordinates[0]),  # lowest x1
+                    min(box[1], face_coordinates[1]),  # lowest y1
+                    max(box[2], face_coordinates[2]),  # highest x2
+                    max(box[3], face_coordinates[3])   # highest y2
+                ])
+    del fa
+
+    # Calculate width and height
+    width = box[2] - box[0]
+    height = box[3] - box[1]
+
+    # Determine the side length of the square
+    side_length = max(width, height)
+
+    padding_percent = 0.2
+
+    while True:
+        # Calculate padding to make the box square and add 20% padding
+        padding_width = (side_length - width) / 2 + padding_percent * side_length
+        padding_height = (side_length - height) / 2 + padding_percent * side_length
+
+        # Apply padding
+        padded_box = np.array([
+            box[0] - padding_width,
+            box[1] - padding_height,
+            box[2] + padding_width,
+            box[3] + padding_height
+        ])
+
+        if all(item > 0 for item in padded_box):
+            break
+        else:
+            padding_percent -= 0.01
+
+    np.savetxt(os.path.join(ori_imgs_dir, 'box.txt'), padded_box, '%f')
+
+    print(f'[INFO] ===== extracted face coordinates =====')
 
 def extract_semantics(ori_imgs_dir, parsing_dir):
 
@@ -451,6 +512,10 @@ if __name__ == '__main__':
     # extract images
     if opt.task == -1 or opt.task == 2:
         extract_images(opt.path, ori_imgs_dir)
+
+    # extract face coordinates
+    if opt.task == -1 or opt.task == 13:
+        extract_face_coordinates(ori_imgs_dir)
 
     # face parsing
     if opt.task == -1 or opt.task == 3:
