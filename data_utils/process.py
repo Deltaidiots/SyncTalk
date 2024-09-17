@@ -40,16 +40,15 @@ def extract_images(path, out_path, fps=25):
     print(f'[INFO] ===== extracted images =====')
 
 def extract_face_coordinates(ori_imgs_dir):
-
     print(f'[INFO] ===== extract face coordinates from {ori_imgs_dir} =====')
 
     try:
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False)
     except:
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
+    
     image_paths = glob.glob(os.path.join(ori_imgs_dir, '*.jpg'))
-
-    box = None
+    boxes = []
 
     for image_path in tqdm.tqdm(image_paths):
         input = cv2.imread(image_path, cv2.IMREAD_UNCHANGED) # [H, W, 3]
@@ -58,17 +57,19 @@ def extract_face_coordinates(ori_imgs_dir):
         if detected_faces is not None and len(detected_faces) > 0:
             face = detected_faces[0]
             np.savetxt(image_path.replace('jpg', 'box'), face, '%f')
-            face_coordinates = face[:4]
-            if box is None:
-                box = face_coordinates                
-            else:
-                box = np.array([
-                    min(box[0], face_coordinates[0]),  # lowest x1
-                    min(box[1], face_coordinates[1]),  # lowest y1
-                    max(box[2], face_coordinates[2]),  # highest x2
-                    max(box[3], face_coordinates[3])   # highest y2
-                ])
-    del fa
+            boxes.append(face[:4])
+
+    if not boxes:
+        print(f'[ERROR] No faces detected in {ori_imgs_dir}')
+        return
+
+    boxes = np.array(boxes)
+    box = np.array([
+        np.min(boxes[:, 0]),  # lowest x1
+        np.min(boxes[:, 1]),  # lowest y1
+        np.max(boxes[:, 2]),  # highest x2
+        np.max(boxes[:, 3])   # highest y2
+    ])
 
     # Calculate width and height
     width = box[2] - box[0]
@@ -76,7 +77,6 @@ def extract_face_coordinates(ori_imgs_dir):
 
     # Determine the side length of the square
     side_length = max(width, height)
-
     padding_percent = 0.2
 
     while True:
@@ -98,7 +98,6 @@ def extract_face_coordinates(ori_imgs_dir):
             padding_percent -= 0.01
 
     np.savetxt(os.path.join(ori_imgs_dir, 'box.txt'), padded_box, '%f')
-
     print(f'[INFO] ===== extracted face coordinates =====')
 
 def extract_semantics(ori_imgs_dir, parsing_dir):
