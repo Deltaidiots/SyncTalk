@@ -29,3 +29,4 @@ onnxruntime-gpu
 librosa
 fvcore
 iopath
+gfpgan

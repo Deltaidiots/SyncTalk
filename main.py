@@ -22,6 +22,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_range', type=int, nargs='*', default=[0, -1], help="data range to use")
     parser.add_argument('--workspace', type=str, default='workspace')
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--enhance', action='store_true', help="apply image enhancement using GFPGAN")
+
 
     ### training options
     parser.add_argument('--iters', type=int, default=200000, help="training iters")
@@ -204,14 +206,11 @@ if __name__ == '__main__':
 
         else:
             ### test and save video (fast)  
-            trainer.test(test_loader)
+            trainer.test(test_loader, enhance=opt.enhance)
 
             ### evaluate metrics (slow)
             if test_loader.has_gt:
                 trainer.evaluate(test_loader)
-
-
-
     else:
 
         optimizer = lambda model: torch.optim.AdamW(model.get_params(opt.lr, opt.lr_net), betas=(0, 0.99), eps=1e-8)

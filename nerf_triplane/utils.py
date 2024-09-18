@@ -2,6 +2,7 @@ import os
 import glob
 import tqdm
 import random
+import subprocess
 import tensorboardX
 import librosa
 import librosa.filters
@@ -25,6 +26,27 @@ from torch_ema import ExponentialMovingAverage
 from packaging import version as pver
 import imageio
 import lpips
+
+
+from realesrgan import RealESRGANer
+from gfpgan import GFPGANer
+
+def initialize_models(method='gfpgan'):
+    """Initialize the chosen enhancement model: GFPGAN or Real-ESRGAN"""
+    
+    if method == 'gfpgan':
+        # Initialize GFPGAN model
+        # model_path = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+
+        model_path = 'checkpoints/GFPGANv1.4.pth' # Path to the pre-trained GFPGAN model
+        restorer = GFPGANer(
+            model_path=model_path,
+            upscale=2,  # Adjust the upscale factor based on your resolution needs
+            arch='clean',
+            channel_multiplier=2,
+            bg_upsampler=None  # Can be None or Real-ESRGAN
+        )
+        return restorer
 
 def custom_meshgrid(*args):
     # ref: https://pytorch.org/docs/stable/generated/torch.meshgrid.html?highlight=meshgrid#torch.meshgrid
@@ -1041,7 +1063,7 @@ class Trainer(object):
 
     # Function to blend two images with a mask
 
-    def test(self, loader, save_path=None, name=None, write_image=False):
+    def test(self, loader, save_path=None, name=None, write_image=False, enhance=False):
 
         if save_path is None:
             save_path = os.path.join(self.workspace, 'results')
@@ -1058,6 +1080,9 @@ class Trainer(object):
 
         all_preds = []
         all_preds_depth = []
+
+        if enhance:
+            gfpganer = initialize_models(method='gfpgan')
 
         with torch.no_grad():
 
@@ -1083,11 +1108,17 @@ class Trainer(object):
                 pred_depth = preds_depth[0].detach().cpu().numpy()
                 pred_depth = (pred_depth * 255).astype(np.uint8)
 
+                # Enhance the image using GFPGAN if enhancement is enabled
+                if enhance:
+                    _, _, enhanced_image = gfpganer.enhance(pred, has_aligned=False, only_center_face=False, paste_back=True)
+                else:
+                    enhanced_image = pred
+
                 if write_image:
-                    imageio.imwrite(path, pred)
+                    imageio.imwrite(path, enhanced_image)
                     imageio.imwrite(path_depth, pred_depth)
 
-                all_preds.append(pred)
+                all_preds.append(enhanced_image)
                 all_preds_depth.append(pred_depth)
 
                 pbar.update(loader.batch_size)
@@ -1095,13 +1126,14 @@ class Trainer(object):
         # write video
         all_preds = np.stack(all_preds, axis=0)
         all_preds_depth = np.stack(all_preds_depth, axis=0)
-        imageio.mimwrite(os.path.join(save_path, f'{name}.mp4'), all_preds, fps=25, quality=8, macro_block_size=1)
-        imageio.mimwrite(os.path.join(save_path, f'{name}_depth.mp4'), all_preds_depth, fps=25, quality=8, macro_block_size=1)
+        imageio.mimwrite(os.path.join(save_path, f'{name}.mp4'), all_preds, fps=25, quality=10, macro_block_size=1)
+        imageio.mimwrite(os.path.join(save_path, f'{name}_depth.mp4'), all_preds_depth, fps=25, quality=10, macro_block_size=1)
         if self.opt.aud != '':
-            os.system(f'ffmpeg -i {os.path.join(save_path, f"{name}.mp4")} -i {self.opt.aud} -strict -2 -c:v copy {os.path.join(save_path, f"{name}_audio.mp4")} -y')
+            combine_audio_video(save_path, name, self.opt.aud)
 
         self.log(f"==> Finished Test.")
-    
+
+
     # [GUI] just train for 16 steps, without any other overhead that may slow down rendering.
     def train_gui(self, train_loader, step=16):
 
@@ -1591,7 +1623,20 @@ def melspectrogram(wav):
 
     return _normalize(S)
 
-
+def combine_audio_video(save_path, name, audio_path):
+    video_path = os.path.join(save_path, f"{name}.mp4")
+    output_path = os.path.join(save_path, f"{name}_audio.mp4")
+    
+    ffmpeg_command = [
+        'ffmpeg', '-i', video_path, '-i', audio_path, '-c:v', 'libx264', '-preset', 'veryslow', '-qp', '0', '-strict', '-2', '-c:a', 'aac', output_path, '-y'
+    ]
+    
+    result = subprocess.run(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    if result.returncode != 0:
+        print(f"Error combining audio and video: {result.stderr}")
+    else:
+        print(f"Successfully combined audio and video into {output_path}")
 def _stft(y):
     return librosa.stft(y=y, n_fft=800, hop_length=200, win_length=800)
 
