@@ -79,23 +79,20 @@ def extract_face_coordinates(ori_imgs_dir):
     side_length = max(width, height)
     padding_percent = 0.2
 
-    while True:
-        # Calculate padding to make the box square and add 20% padding
-        padding_width = (side_length - width) / 2 + padding_percent * side_length
-        padding_height = (side_length - height) / 2 + padding_percent * side_length
+    # Calculate padding to make the box square and add 20% padding
+    padding_width = (side_length - width) / 2 + padding_percent * side_length
+    padding_height = (side_length - height) / 2 + padding_percent * side_length
 
-        # Apply padding
-        padded_box = np.array([
-            box[0] - padding_width,
-            box[1] - padding_height,
-            box[2] + padding_width,
-            box[3] + padding_height
-        ])
+    # Apply padding
+    padded_box = np.array([
+        box[0] - padding_width,
+        box[1] - padding_height,
+        box[2] + padding_width,
+        box[3] + padding_height
+    ])
 
-        if all(item > 0 for item in padded_box):
-            break
-        else:
-            padding_percent -= 0.01
+    # Ensure the padded box is within bounds
+    padded_box = np.maximum(padded_box, 0)
 
     np.savetxt(os.path.join(ori_imgs_dir, 'box.txt'), padded_box, '%f')
     print(f'[INFO] ===== extracted face coordinates =====')
