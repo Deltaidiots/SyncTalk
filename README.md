@@ -178,9 +178,16 @@ python main.py data/May --workspace model/trial_may -O --iters 100000 --finetune
 ```
 
 ### Test
+For the test, you can use the following command. The results will be saved in the "model/trial_may/results/" folder.
+
 ```bash
 python main.py data/May --workspace model/trial_may -O --test --asr_model ave --portrait
 
+```
+In order to improve the output visual quality use this command with the "--enhance" flag. This will use the GFPGAN model to enhance the output video.
+
+```bash
+python main.py data/May --workspace model/trial_may -O --test --asr_model ave --portrait --enhance
 ```
 
 ### Train & Test Torso [Repair Double Chin]
@@ -201,8 +208,6 @@ python main.py data/May --workspace model/trial_may_torso -O  --torso --test --a
 python main.py data/May --workspace model/trial_may_torso -O  --torso --test --test_train --asr_model ave --aud ./demo/test.wav # not support --portrait
 
 ```
-
-
 
 ## Citation	
 
